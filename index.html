@@ -261,7 +261,7 @@ function Combobox({ query, setQuery, open, setOpen, onPick, selId }) {
   const sel = selId ? byId(selId) : null;
   const showAll = !q || (sel && query === labelOf(sel));
   const results = showAll ? ROOMS : ROOMS.filter(r =>
-    (r.room + ' ' + (r.sub || '')).toLowerCase().includes(q));
+    (r.room + ' ' + r.company + ' ' + (r.sub || '')).toLowerCase().includes(q));
 
   useEffect(() => { setHi(0); }, [query]);
   useEffect(() => {
@@ -315,7 +315,7 @@ function Combobox({ query, setQuery, open, setOpen, onPick, selId }) {
                       <div className="co">{r.room}
                         {STATUS[r.status] && <span className={"st " + r.status}>{STATUS[r.status]}</span>}
                       </div>
-                      {r.sub && <div className="rm">{r.sub}</div>}
+                      <div className="rm">{r.status === 'stage' ? r.sub : r.company}</div>
                     </div>
                     <span className="go"><I.go /></span>
                   </div>
@@ -399,8 +399,16 @@ function MapView({ selId, onSelect }) {
 
   function zoom(dir) {
     const { w, h } = vp();
-    const f = dir > 0 ? 1.5 : 1 / 1.5;
-    let s = Math.min(4, Math.max(fitScaleRef.current * 0.92, cur.current.scale * f));
+    // snap to a clean ladder: fit → 1.25× → 1.75× → 2.5× → 3.5×
+    const fit = fitScaleRef.current;
+    const ladder = [fit, fit * 1.25, fit * 1.75, fit * 2.5, fit * 3.5];
+    const cur_s = cur.current.scale;
+    let s;
+    if (dir > 0) {
+      s = ladder.find(l => l > cur_s + 0.001) ?? ladder[ladder.length - 1];
+    } else {
+      s = [...ladder].reverse().find(l => l < cur_s - 0.001) ?? ladder[0];
+    }
     const cx = (w / 2 - cur.current.tx) / cur.current.scale;
     const cy = (h / 2 - cur.current.ty) / cur.current.scale;
     apply(clampT(s, w / 2 - s * cx, h / 2 - s * cy, w, h));
@@ -409,8 +417,8 @@ function MapView({ selId, onSelect }) {
   function wheel(e) {
     e.preventDefault();
     const { w, h } = vp();
-    const f = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-    let s = Math.min(4, Math.max(fitScaleRef.current * 0.92, cur.current.scale * f));
+    const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    let s = Math.min(4, Math.max(fitScaleRef.current * 0.95, cur.current.scale * f));
     const rect = vpRef.current.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     const cx = (mx - cur.current.tx) / cur.current.scale;
@@ -482,7 +490,7 @@ function MapView({ selId, onSelect }) {
           </svg>
         </div>
 
-        <div className="ctrls">
+        <div className="ctrls" onPointerDown={e => e.stopPropagation()}>
           <button onClick={() => zoom(1)} aria-label="Zoom in">+</button>
           <button onClick={() => zoom(-1)} aria-label="Zoom out">−</button>
           <button onClick={() => onSelect(null)} aria-label="Reset view" style={{ fontSize: 13 }}>⤢</button>
@@ -525,7 +533,7 @@ function Sheet({ selId, onClose }) {
       <div className="sheet-hd">
         <div className="sheet-pip">{initials(r)}</div>
         <div className="sheet-co">
-          <div className="ey">{r.level === 'lobby' ? 'Main Stage' : 'Meeting Room'}</div>
+          <div className="ey">{r.level === 'lobby' ? 'Main Stage' : r.company}</div>
           <h2>{r.room}
             {STATUS[r.status] && <span className={"st " + r.status}
               style={r.status === 'tbc' ? { background: 'rgba(231,24,32,.2)', color: '#ff9398' }
